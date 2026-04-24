@@ -1,0 +1,1 @@
+import{t as e}from"./paths-q0DsoP9l.js";import{t}from"./paths-CjUPQkns.js";import{n,r}from"./index-7PDbqwcn.js";function i(i,a){let o=r(i);return a===n.STANDARD?e[o]:t[o]}export{i as getIconPaths};

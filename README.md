@@ -72,6 +72,7 @@ From the repository root:
 npm install
 npm run demo:dev
 npm run demo:build
+npm run demo:sync
 ```
 
 For demo-app-specific notes, see [`demo-app/README.md`](demo-app/README.md).
