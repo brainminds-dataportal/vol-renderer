@@ -65,3 +65,5 @@ Follow the [Conventional Commits](https://www.conventionalcommits.org/) specific
 - For code changes, the default validation commands are:
   - `npm run build`
   - `npm run demo:build`
+- Package publishing is triggered by pushing a `v*` tag.
+  The tag version must match `package.json.version` exactly.

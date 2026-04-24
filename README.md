@@ -76,3 +76,11 @@ npm run demo:sync
 ```
 
 For demo-app-specific notes, see [`demo-app/README.md`](demo-app/README.md).
+
+<br/><br/>
+
+## Package publishing
+
+Publishing to GitHub Packages is handled by GitHub Actions on `v*` tags.
+The tag version must match `package.json` exactly (for example, `v0.1.0`
+requires `"version": "0.1.0"`).

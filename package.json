@@ -1,7 +1,11 @@
 {
   "name": "@brainminds-dataportal/vol-renderer",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/brainminds-dataportal/vol-renderer.git"
+  },
   "publishConfig": {
-    "registry": "https://npm.pkg.github.com/brainminds-dataportal"
+    "registry": "https://npm.pkg.github.com"
   },
   "version": "0.1.0",
   "description": "",
