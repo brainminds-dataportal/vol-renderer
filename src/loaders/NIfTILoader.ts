@@ -33,7 +33,7 @@ class NIfTILoader extends Loader {
 		url: string,
 		onLoad: (v: Volume) => void,
 		onProgress?: (request: ProgressEvent) => void,
-		onError?: (event: ErrorEvent) => void,
+		onError?: (event: unknown) => void,
 	) {
 
 		const scope = this;
@@ -69,7 +69,7 @@ class NIfTILoader extends Loader {
 
 	}
 
-	parse(_data: ArrayBuffer, onError?: (event: ErrorEvent) => void): Volume {
+	parse(_data: ArrayBuffer, onError?: (event: unknown) => void): Volume {
 
 
 		const getDataType = (dataTypeCode: number) => {
@@ -152,7 +152,7 @@ class NIfTILoader extends Loader {
 				//case Nifti.NIFTI1.TYPE_UINT64:
 				//    return Float64Array;
 				default:
-					return null;
+					return undefined;
 
 			}
 		};
@@ -167,7 +167,7 @@ class NIfTILoader extends Loader {
 			spacings: number[],
 		}
 
-		const infoUsingMethod2 = (niftiHeader, lengthFactor: number) => {
+		const infoUsingMethod2 = (niftiHeader: any, lengthFactor: number) => {
 			let result: AffineTransformInfo | undefined;
 			if (niftiHeader.qform_code > 0) {
 				//NIfTI header doesn't contain affine matrix, must use Q-form params instead to create the matrix
@@ -199,14 +199,14 @@ class NIfTILoader extends Loader {
 				affine.setPosition(0, 0, 0);
 
 				//spacings between slices readily available from the header (just convert to mm)
-				const spacings = niftiHeader.pixDims.slice(1, 4).map(s => s * lengthFactor);
+				const spacings = niftiHeader.pixDims.slice(1, 4).map((s: number) => s * lengthFactor);
 
 				result = { affine, spacings, transformType: niftiHeader.qform_code };
 			}
 			return result;
 		};
 
-		const infoUsingMethod2bis = (niftiHeader, lengthFactor: number) => {
+		const infoUsingMethod2bis = (niftiHeader: any, lengthFactor: number) => {
 			let result: AffineTransformInfo | undefined;
 			if (niftiHeader.qform_code > 0) {
 
@@ -269,8 +269,8 @@ class NIfTILoader extends Loader {
 
 				const org = new Vector3(0, 0, 0).applyMatrix4(affine);
 				const unit = new Vector3(1, 1, 1).applyMatrix4(affine);
-				const spacings = unit.sub(org).toArray().map(s => Math.abs(s));
-				const rescale = new Vector3(...(spacings.map(s => 1 / s)));
+				const spacings = unit.sub(org).toArray().map((s: number) => Math.abs(s));
+				const rescale = new Vector3(...(spacings.map((s: number) => 1 / s)));
 
 				affine.scale(rescale);
 
@@ -284,7 +284,7 @@ class NIfTILoader extends Loader {
 			return result;
 		};
 
-		const infoUsingMethod3 = (niftiHeader, lengthFactor: number) => {
+		const infoUsingMethod3 = (niftiHeader: any, lengthFactor: number) => {
 			let result: AffineTransformInfo | undefined;
 			if (niftiHeader.sform_code > 0) {
 				//NIfTI header contains transform matrix
@@ -302,8 +302,8 @@ class NIfTILoader extends Loader {
 
 				const org = new Vector3(0, 0, 0).applyMatrix4(headerAffine);
 				const unit = new Vector3(1, 1, 1).applyMatrix4(headerAffine);
-				const spacings = unit.sub(org).toArray().map(s => Math.abs(s))
-					.map(s => s * lengthFactor);
+				const spacings = unit.sub(org).toArray().map((s: number) => Math.abs(s))
+					.map((s: number) => s * lengthFactor);
 
 				result = { affine, spacings, transformType: niftiHeader.sform_code };
 			}
@@ -350,15 +350,9 @@ class NIfTILoader extends Loader {
 
 			if (infoMethod2 || infoMethod3) {
 
-				let preferredMethod: AffineTransformInfo | undefined;;
-				if (infoMethod2 && typeof infoMethod3 === 'undefined') {
-					preferredMethod = infoMethod2;
-				} else if (infoMethod3 && typeof infoMethod2 === 'undefined') {
-					preferredMethod = infoMethod3;
-				} else {
-					//both S-form and Q-form are defined
-					preferredMethod = infoMethod3;
-
+				const preferredMethod = infoMethod3 ?? infoMethod2;
+				if (!preferredMethod) {
+					throw new Error('Unable to determine affine transform for this NIfTI file');
 				}
 				console.log('infoMethod2.0', infoMethod2b);
 				console.log('infoMethod2', infoMethod2);
@@ -388,7 +382,7 @@ class NIfTILoader extends Loader {
 				*/
 
 				//spacings between slices are voxel sizes specified in the header 
-				spacings = niftiHeader.pixDims.slice(1, 4).map(s => s * lengthFactor);
+				spacings = niftiHeader.pixDims.slice(1, 4).map((s: number) => s * lengthFactor);
 
 			} else {
 				//should not happen
@@ -401,7 +395,7 @@ class NIfTILoader extends Loader {
 				};
 
 				onError && onError(new ErrorEvent('NIFTILoadError', errorInitEvent));
-				return;
+				throw new Error('Unable to process this NIfTI file');
 			}
 
 
@@ -469,6 +463,9 @@ class NIfTILoader extends Loader {
 
 			}
 
+		}
+		if (!volume) {
+			throw new Error('Unable to parse NIfTI volume');
 		}
 		return volume;
 	}

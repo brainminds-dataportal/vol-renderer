@@ -66,13 +66,15 @@ class Volume {
 	data: Uint8Array | Int8Array
 		| Int16Array | Uint16Array
 		| Int32Array | Uint32Array
-		| Float32Array | Float64Array = new Uint8Array();
+		| Float32Array | Float64Array = new Uint8Array(0);
 
 	datatype: Uint8ArrayConstructor | Int8ArrayConstructor
 		| Int16ArrayConstructor | Uint16ArrayConstructor
 		| Int32ArrayConstructor | Uint32ArrayConstructor
 		| Float32ArrayConstructor | Float64ArrayConstructor
 		| undefined;
+
+	threeDataType?: number;
 
 	/**
 	 * @member {Array}  spacing Spacing to apply to the volume from IJK to RAS coordinate system

@@ -1,7 +1,7 @@
 { 
     "compilerOptions": { 
       "target": "es2020", 
-      "lib": ["es6", "dom"],
+      "lib": ["es2020", "dom"],
       "sourceMap": true, 
       "strict": true, 
       "noImplicitReturns": true,
@@ -15,17 +15,14 @@
       "skipLibCheck": true,
 
       //
-      "jsx": "react", 
+      "jsx": "react-jsx", 
       "module": "ESNext",  
-      "moduleResolution": "node",
-
-      "declaration": true,
-      "declarationDir": "types",
+      "moduleResolution": "bundler",
+      "ignoreDeprecations": "6.0",
 
       "allowSyntheticDefaultImports": true,
-      "emitDeclarationOnly": true,
 
     },
-    "include": ["**/*.ts", "**/*.tsx"],
+    "include": ["src/**/*.ts", "src/**/*.tsx", "src/**/*.d.ts"],
     "exclude": ["node_modules"]
   }

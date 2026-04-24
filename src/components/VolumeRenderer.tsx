@@ -31,6 +31,7 @@ const VolumePreviewWrapper = (props: VolumeRendererProps) => {
     const [isWebGlEnabled, setWebGlEnabled] = React.useState<boolean>();
     const [volumeFile, setVolumeFile] = useAtom(StAtm.volumeFile);
     const [, setAlertMessage] = useAtom(StAtm.alertMessage);
+    const loadTimer = React.useRef<number | undefined>(undefined);
 
 
     const loadLocalVolumeFile = (file: File | string) => {
@@ -40,13 +41,10 @@ const VolumePreviewWrapper = (props: VolumeRendererProps) => {
         }
         setVolumeFile(undefined);
 
-        let isLocalFile;
         let fileName;
         if (typeof file === "string") {
-            isLocalFile = false;
             fileName = file;
         } else {
-            isLocalFile = true;
             fileName = file.name;
         }
         const fileExt = fileName.toUpperCase().split('.').pop();
@@ -66,10 +64,17 @@ const VolumePreviewWrapper = (props: VolumeRendererProps) => {
         const volumeExtensions = ['NII', 'GZ'];
         const seemsValidFile = (volumeExtensions.indexOf(fileExtension) >= 0);
         if (seemsValidFile) {
-            setVolumeFile({
-                fileOrBlob: (isLocalFile ? file : undefined),
-                name: fileName,
-            });
+            if (typeof file === "string") {
+                setVolumeFile({
+                    fileOrBlob: undefined,
+                    name: fileName,
+                });
+            } else {
+                setVolumeFile({
+                    fileOrBlob: file,
+                    name: fileName,
+                });
+            }
 
         } else {
             setAlertMessage(<span>The selected file doesn't seem to be a valid NIfTI file.</span>);
@@ -85,23 +90,29 @@ const VolumePreviewWrapper = (props: VolumeRendererProps) => {
         setWebGlEnabled(isWebGlEnabled);
 
         if (isWebGlEnabled) {
-            if (typeof props.file != "undefined") {
-                setTimeout(() => {
-                    loadLocalVolumeFile(props.file);
-                },
-                    200);
-            } else if (typeof props.url != "undefined") {
-                setTimeout(() => {
-                    loadLocalVolumeFile(props.url);
-                },
-                    500);
+            if (props.file) {
+                const file = props.file;
+                loadTimer.current = window.setTimeout(() => {
+                    loadLocalVolumeFile(file);
+                }, 200);
+            } else if (props.url) {
+                const url = props.url;
+                loadTimer.current = window.setTimeout(() => {
+                    loadLocalVolumeFile(url);
+                }, 500);
             } else {
                 setAlertMessage(<span>No specified NIfTI file or url.</span>);
             }
         }
 
-    }, []
-    );
+        return () => {
+            if (typeof loadTimer.current !== 'undefined') {
+                window.clearTimeout(loadTimer.current);
+                loadTimer.current = undefined;
+            }
+        };
+
+    }, []);
 
     return (
         (isWebGlEnabled === false) ?

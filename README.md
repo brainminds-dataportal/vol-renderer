@@ -1,16 +1,14 @@
 # vol-renderer
 
-
 A npm package to display NIfTI volume (based on ThreeJs)
 
 <div align="center">
   <img src="docs/vol-renderer_preview.png">
 </div>
 
-
 <br/><br/>
 
-## Try the online [demo](https://cau-riken.github.io/vol-renderer/demo/index.html).
+## Try the online [demo](https://brainminds-dataportal.github.io/vol-renderer/demo/index.html).
 
 <br/><br/>
 
@@ -19,7 +17,7 @@ A npm package to display NIfTI volume (based on ThreeJs)
 In the consuming project, add a line to your `.npmrc` file so this package can be retrieved from github package registry :
 
 ```.rc
-@cau-riken:registry=https://npm.pkg.github.com
+@brainminds-dataportal:registry=https://npm.pkg.github.com
 ```
 
 And if not already done, you'll also need to include a personal token with `read:packages` scope to be able to install packages from github registry:
@@ -32,10 +30,14 @@ And if not already done, you'll also need to include a personal token with `read
 ### Install package
 
 ```sh
-npm install @cau-riken/vol-renderer
+npm install @brainminds-dataportal/vol-renderer
 ```
 
 ### Import package and use in your code
+
+The published npm package exposes the library entrypoints and stylesheet below.
+Files under `demo/` and `demo-app/` are for repository demos and are not part of
+the package API.
 
 ```javascript
 
@@ -43,9 +45,9 @@ import 'normalize.css';
 
 ....
 
-import { VolumeRenderer } from "@cau-riken/vol-renderer";
+import { VolumeRenderer } from "@brainminds-dataportal/vol-renderer";
 
-import "@cau-riken/vol-renderer/dist/main.css";
+import "@brainminds-dataportal/vol-renderer/dist/main.css";
 
 ....
 
@@ -57,4 +59,19 @@ import "@cau-riken/vol-renderer/dist/main.css";
 
 ```
 
+<br/><br/>
 
+## Repository demo app
+
+A Vite-based React + TypeScript demo project is available under `demo-app/`.
+It is intended for repository development and manual verification of the library.
+
+From the repository root:
+
+```sh
+npm install
+npm run demo:dev
+npm run demo:build
+```
+
+For demo-app-specific notes, see [`demo-app/README.md`](demo-app/README.md).

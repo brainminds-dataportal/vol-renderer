@@ -14,7 +14,7 @@ import {
     BufferGeometry,
     Camera,
     Clock,
-    DataTexture3D,
+    Data3DTexture,
     EdgesGeometry,
     EventDispatcher,
     FloatType,
@@ -32,7 +32,6 @@ import {
     PerspectiveCamera,
     Raycaster,
     RedFormat,
-    Renderer,
     Scene,
     ShaderMaterial,
     Texture,
@@ -48,7 +47,7 @@ import Stats from 'three/examples/jsm/libs/stats.module.js';
 
 import { VolumeRenderShader1 } from 'three/examples/jsm/shaders/VolumeShader.js';
 import { ArcballControls } from 'three/examples/jsm/controls/ArcballControls.js';
-import { DragControls } from 'three/examples/jsm/controls/DragControls';
+import { DragControls } from 'three/examples/jsm/controls/DragControls.js';
 
 import { NIfTILoader } from '../loaders/NIfTILoader';
 
@@ -82,8 +81,22 @@ const Init_PerspCam_FOV = 50;
 
 type ListenerInfo = {
     event: string,
-    listener: any,
-    dispatcher: EventDispatcher,
+    listener: (...args: any[]) => void,
+    dispatcher: EventDispatcher<any>,
+}
+
+type ArcballControlsWithTarget = ArcballControls & {
+    target: Vector3,
+};
+
+const hasControlsTarget = (controls: ArcballControls | undefined): controls is ArcballControlsWithTarget =>
+    typeof controls !== 'undefined' && 'target' in controls;
+
+const setSliceMaterialVisible = (slice: VolumeSlice | undefined, visible: boolean) => {
+    const mesh = slice?.mesh;
+    if (mesh) {
+        mesh.material.visible = visible;
+    }
 }
 
 const setupInset = (insetAspect: number, camera: Camera) => {
@@ -114,9 +127,11 @@ export type Obj3dRefs = {
 
     scene?: Scene | undefined,
     controls?: ArcballControls | undefined,
+    orthControls?: ArcballControls | undefined,
+    perspControls?: ArcballControls | undefined,
 
     //insets related  
-    renderer2?: Renderer | undefined,
+    renderer2?: WebGLRenderer | undefined,
     aspect2?: number,
     camera2?: PerspectiveCamera | undefined,
     scene2?: Scene | undefined,
@@ -177,6 +192,10 @@ export type Obj3dRefs = {
 export type RealTimeState = {
     camDistance?: number,
     viewMode?: StAtm.ViewMode,
+    volumeLoaded?: boolean,
+    showXSlice?: boolean,
+    showYSlice?: boolean,
+    showZSlice?: boolean,
     normPointer: Vector2,
     indexX?: number,
     indexY?: number,
@@ -232,6 +251,9 @@ export const VolumePreview = (props: VolumePreviewProps) => {
 
     const volRendererContainer = React.useRef<HTMLDivElement>(null);
     const clock = React.useRef(new Clock());
+    const pendingTimeouts = React.useRef<number[]>([]);
+    const volumeLoadToken = React.useRef(0);
+    const isUnmounted = React.useRef(false);
 
     const objectURLs = React.useRef<string[]>([]);
     const volRendererInset = React.useRef<HTMLDivElement>(null);
@@ -256,11 +278,112 @@ export const VolumePreview = (props: VolumePreviewProps) => {
         normPointer: new Vector2()
     });
 
+    const scheduleTimeout = React.useCallback((callback: () => void, delay: number) => {
+        const timeoutId = window.setTimeout(() => {
+            pendingTimeouts.current = pendingTimeouts.current.filter((id) => id !== timeoutId);
+            callback();
+        }, delay);
+        pendingTimeouts.current.push(timeoutId);
+        return timeoutId;
+    }, []);
+
+    const clearScheduledTimeouts = React.useCallback(() => {
+        pendingTimeouts.current.forEach((timeoutId) => window.clearTimeout(timeoutId));
+        pendingTimeouts.current = [];
+    }, []);
+
+    const applySceneVisibility = (nextViewMode: StAtm.ViewMode) => {
+        const showVolume = nextViewMode === StAtm.ViewMode.Volume3D;
+        const showSlicesInMainScene = nextViewMode === StAtm.ViewMode.Slice3D;
+        const xSliceVisible = showSlicesInMainScene && Boolean(rtState.current.showXSlice);
+        const ySliceVisible = showSlicesInMainScene && Boolean(rtState.current.showYSlice);
+        const zSliceVisible = showSlicesInMainScene && Boolean(rtState.current.showZSlice);
+
+        if (obj3d.current.vol3D) {
+            obj3d.current.vol3D.visible = showVolume;
+        }
+
+        if (obj3d.current.sliceX?.mesh) {
+            obj3d.current.sliceX.mesh.visible = showSlicesInMainScene;
+            setSliceMaterialVisible(obj3d.current.sliceX, xSliceVisible);
+        }
+        if (obj3d.current.sliceY?.mesh) {
+            obj3d.current.sliceY.mesh.visible = showSlicesInMainScene;
+            setSliceMaterialVisible(obj3d.current.sliceY, ySliceVisible);
+        }
+        if (obj3d.current.sliceZ?.mesh) {
+            obj3d.current.sliceZ.mesh.visible = showSlicesInMainScene;
+            setSliceMaterialVisible(obj3d.current.sliceZ, zSliceVisible);
+        }
+    };
+
+    const copyCameraState = (source: Camera | undefined, target: Camera | undefined) => {
+        const { scene } = obj3d.current;
+        if (!source || !target || !scene) {
+            return;
+        }
+
+        target.up.copy(source.up);
+        target.position.copy(source.position);
+        target.lookAt(scene.position);
+
+        if (target instanceof PerspectiveCamera && source instanceof OrthographicCamera) {
+            target.fov = 1 / source.zoom * Init_PerspCam_FOV;
+            target.updateProjectionMatrix();
+            return;
+        }
+
+        if (target instanceof OrthographicCamera && source instanceof PerspectiveCamera) {
+            target.zoom = Init_PerspCam_FOV / source.fov;
+            target.updateProjectionMatrix();
+        }
+    };
+
+    const applyViewMode = (nextViewMode: StAtm.ViewMode) => {
+        rtState.current.viewMode = nextViewMode;
+        const previousControls = obj3d.current.controls;
+        const targetCamera = nextViewMode === StAtm.ViewMode.Slice3D
+            ? obj3d.current.perspCam
+            : obj3d.current.orthCam;
+        const targetControls = nextViewMode === StAtm.ViewMode.Slice3D
+            ? obj3d.current.perspControls
+            : obj3d.current.orthControls;
+
+        if (targetCamera && targetControls) {
+            if (previousControls && previousControls !== targetControls
+                && hasControlsTarget(previousControls) && hasControlsTarget(targetControls)) {
+                targetControls.target.copy(previousControls.target);
+            }
+            if (obj3d.current.activeCam !== targetCamera) {
+                copyCameraState(obj3d.current.activeCam, targetCamera);
+            }
+            targetControls.setCamera(targetCamera);
+            targetControls.saveState();
+        }
+
+        if (targetCamera && obj3d.current.activeCam !== targetCamera) {
+            if (obj3d.current.controls) {
+                obj3d.current.controls.enabled = false;
+            }
+            obj3d.current.activeCam = targetCamera;
+            obj3d.current.controls = targetControls;
+            if (obj3d.current.controls) {
+                obj3d.current.controls.enabled = true;
+            }
+        }
+
+        applySceneVisibility(nextViewMode);
+    };
+
     React.useEffect(() => {
 
         rtState.current = {
             ...rtState.current,
             viewMode,
+            volumeLoaded,
+            showXSlice,
+            showYSlice,
+            showZSlice,
             indexX,
             indexY,
             indexZ,
@@ -271,39 +394,7 @@ export const VolumePreview = (props: VolumePreviewProps) => {
 
     React.useEffect(() => {
 
-        //set active camera appropriate to current view mode
-        if (StAtm.ViewMode.Slice3D === viewMode) {
-            if (obj3d.current.activeCam != obj3d.current.perspCam) {
-                obj3d.current.activeCam = obj3d.current.perspCam;
-            }
-        } else {
-            if (obj3d.current.activeCam != obj3d.current.orthCam) {
-                obj3d.current.activeCam = obj3d.current.orthCam;
-            }
-        }
-
-        if (obj3d.current.vol3D) {
-
-            if (StAtm.ViewMode.Volume3D === viewMode) {
-                obj3d.current.vol3D.visible = true;
-
-                obj3d.current.sliceX?.mesh && (obj3d.current.sliceX.mesh.visible = false);
-                obj3d.current.sliceY?.mesh && (obj3d.current.sliceY.mesh.visible = false);
-                obj3d.current.sliceZ?.mesh && (obj3d.current.sliceZ.mesh.visible = false);
-            } else {
-                obj3d.current.vol3D.visible = false;
-
-                //slice object is visible to allow its children being visible,
-                //slice material might be hidden though to hide the slice in Slice3D view.
-
-                obj3d.current.sliceX?.mesh && (obj3d.current.sliceX.mesh.visible = true);
-                obj3d.current.sliceY?.mesh && (obj3d.current.sliceY.mesh.visible = true);
-                obj3d.current.sliceZ?.mesh && (obj3d.current.sliceZ.mesh.visible = true);
-                obj3d.current.sliceX.mesh.material.visible = showXSlice;
-                obj3d.current.sliceY.mesh.material.visible = showYSlice;
-                obj3d.current.sliceZ.mesh.material.visible = showZSlice;
-            }
-        }
+        applyViewMode(viewMode);
 
         //stop animation when rendering volume (as the shader becomes slow when the animation is processed)
         if (StAtm.ViewMode.Volume3D === viewMode && obj3d.current?.boxAninAction) {
@@ -335,7 +426,7 @@ export const VolumePreview = (props: VolumePreviewProps) => {
 
         handleResize();
 
-    }, [viewMode]);
+    }, [viewMode, showXSlice, showYSlice, showZSlice]);
 
 
     const changeCameraPOV = (toPosition: Vector3, toUp: Vector3, withControlReset?: boolean) => {
@@ -451,8 +542,11 @@ export const VolumePreview = (props: VolumePreviewProps) => {
 
                         //animation loop iterates until last tween step
                         const animate = () => {
-                            TWEEN.update() && requestAnimationFrame(animate);
+                            TWEEN.update();
                             renderAll();
+                            if (mainTween.isPlaying()) {
+                                requestAnimationFrame(animate);
+                            }
                         }
                         //disable controls while animating transition
                         obj3d.current.controls.enabled = false;
@@ -470,7 +564,7 @@ export const VolumePreview = (props: VolumePreviewProps) => {
     React.useEffect(() => {
 
         if (obj3d.current.sliceX) {
-            obj3d.current.sliceX.mesh.material.visible = showXSlice;
+            applySceneVisibility(viewMode);
             if (viewMode === StAtm.ViewMode.Slice2D) {
                 if (!showXSlice && !showYSlice && !showZSlice) {
                     setShowYSlice(true);
@@ -485,7 +579,7 @@ export const VolumePreview = (props: VolumePreviewProps) => {
     React.useEffect(() => {
 
         if (obj3d.current.sliceY) {
-            obj3d.current.sliceY.mesh.material.visible = showYSlice;
+            applySceneVisibility(viewMode);
             if (viewMode === StAtm.ViewMode.Slice2D) {
                 if (!showXSlice && !showYSlice && !showZSlice) {
                     setShowZSlice(true);
@@ -500,7 +594,7 @@ export const VolumePreview = (props: VolumePreviewProps) => {
     React.useEffect(() => {
 
         if (obj3d.current.sliceZ) {
-            obj3d.current.sliceZ.mesh.material.visible = showZSlice;
+            applySceneVisibility(viewMode);
             if (viewMode === StAtm.ViewMode.Slice2D) {
                 if (!showXSlice && !showYSlice && !showZSlice) {
                     setShowXSlice(true);
@@ -607,11 +701,16 @@ export const VolumePreview = (props: VolumePreviewProps) => {
 
     //when Volume changed (as a result of local file selection) 
     React.useEffect(() => {
+        const currentLoadToken = ++volumeLoadToken.current;
+
+        clearScheduledTimeouts();
 
         clearBeforeVolumeChange();
 
         setVolumeLoaded(false);
         setViewMode(StAtm.ViewMode.None);
+        rtState.current.viewMode = StAtm.ViewMode.None;
+        rtState.current.volumeLoaded = false;
         setAnimateTransition(false);
         setCameraPOV(StAtm.CameraPOV.Free);
 
@@ -654,8 +753,9 @@ export const VolumePreview = (props: VolumePreviewProps) => {
             objectURLs.current = [];
 
             const manager = new LoadingManager();
+            const fileOrBlob = volumeFile.fileOrBlob;
 
-            if (isLocalFile) {
+            if (isLocalFile && fileOrBlob) {
                 //url modifier to allow manager to read already loaded file 
                 manager.setURLModifier((url) => {
                     if (url == SELECTED_FILE_FAKEURL) {
@@ -676,31 +776,45 @@ export const VolumePreview = (props: VolumePreviewProps) => {
 
                 niftiloadr.load(filename,
                     function onload(volume) {
+                        if (isUnmounted.current || currentLoadToken !== volumeLoadToken.current) {
+                            return;
+                        }
                         if (volume) {
                             initSceneOnVolumeLoaded(volume);
+                            applyViewMode(StAtm.ViewMode.Volume3D);
                         }
 
+                        rtState.current.viewMode = StAtm.ViewMode.Volume3D;
+                        rtState.current.volumeLoaded = true;
                         setViewMode(StAtm.ViewMode.Volume3D);
                         setVolumeLoaded(true);
                         setIsLoading(false);
-                        setTimeout(renderAll, 150);
+                        scheduleTimeout(renderAll, 150);
                         setAnimateTransition(true);
 
                     },
                     function onProgress(request: ProgressEvent) {
                         //console.log('onProgress', request)
                     },
-                    function onError(e: ErrorEvent) {
+                    function onError(e: unknown) {
+                        if (isUnmounted.current || currentLoadToken !== volumeLoadToken.current) {
+                            return;
+                        }
                         console.error(e);
+                        const errorMessage = e instanceof ErrorEvent
+                            ? e.message
+                            : e instanceof Error
+                                ? e.message
+                                : '';
                         setAlertMessage(
                             <p>
                                 Couldn't load the selected file.
                                 <br />
 
                                 {
-                                    e.message
+                                    errorMessage
                                         ?
-                                        <p>Reason:<pre style={{ whiteSpace: 'pre-wrap' }}>{e.message}</pre></p>
+                                        <p>Reason:<pre style={{ whiteSpace: 'pre-wrap' }}>{errorMessage}</pre></p>
                                         :
                                         <span>"Please check it is a valid NIFTi file."</span>
                                 }
@@ -719,12 +833,19 @@ export const VolumePreview = (props: VolumePreviewProps) => {
         }
 
 
-    }, [volumeFile]
+        return () => {
+            if (currentLoadToken === volumeLoadToken.current) {
+                volumeLoadToken.current += 1;
+            }
+            clearScheduledTimeouts();
+        };
+
+    }, [volumeFile, clearScheduledTimeouts, scheduleTimeout]
     );
 
 
     const adjustSliceCamOnResize = (
-        renderer: Renderer | undefined,
+        renderer: WebGLRenderer | undefined,
         width: number,
         height: number,
         camera: OrthographicCamera | undefined,
@@ -826,6 +947,7 @@ export const VolumePreview = (props: VolumePreviewProps) => {
 
     //after component is mounted
     React.useEffect(() => {
+        isUnmounted.current = false;
 
         //set-up renderers
         const volRendCont = volRendererContainer.current;
@@ -888,6 +1010,9 @@ export const VolumePreview = (props: VolumePreviewProps) => {
 
         //dispose renderers
         return () => {
+            isUnmounted.current = true;
+            volumeLoadToken.current += 1;
+            clearScheduledTimeouts();
             clearBeforeVolumeChange();
 
             const removeRendererDom = (domElement: HTMLDivElement | HTMLCanvasElement | undefined, container: HTMLDivElement | null) => {
@@ -908,12 +1033,12 @@ export const VolumePreview = (props: VolumePreviewProps) => {
             };
         }
 
-    }, []);
+    }, [clearScheduledTimeouts]);
 
     const clearBeforeVolumeChange = () => {
         if (obj3d.current.volume) {
             //explicitely release slices to prevent leak (since the hold a back reference to the volume)
-            obj3d.current.volume.sliceList.length = 0;
+            obj3d.current.volume.sliceList = [undefined, undefined, undefined];
         }
         obj3d.current.volume = undefined;
         obj3d.current.scene?.clear();
@@ -933,7 +1058,8 @@ export const VolumePreview = (props: VolumePreviewProps) => {
 
         //FIXME release border stuff (obj3d.current.sliceX.mesh.children)
 
-        obj3d.current.controls?.dispose();
+        obj3d.current.orthControls?.dispose();
+        obj3d.current.perspControls?.dispose();
 
         //obj3d.current.marksGroup.children.forEach(m => m.dispose());
 
@@ -948,7 +1074,6 @@ export const VolumePreview = (props: VolumePreviewProps) => {
         if (obj3d.current.controls && obj3d.current.activeCam && obj3d.current.camera2 && obj3d.current.scene2) {
             //copy position of the camera into inset
             obj3d.current.camera2.position.copy(obj3d.current.activeCam.position);
-            obj3d.current.camera2.position.sub(obj3d.current.controls.target);
             obj3d.current.camera2.position.setLength(300);
             obj3d.current.camera2.lookAt(obj3d.current.scene2.position);
 
@@ -974,8 +1099,10 @@ export const VolumePreview = (props: VolumePreviewProps) => {
 
     const renderAll = function () {
         if (obj3d.current.scene) {
+            const currentViewMode = rtState.current.viewMode ?? viewMode;
+            applySceneVisibility(currentViewMode);
 
-            if (viewMode != StAtm.ViewMode.Slice2D) {
+            if (currentViewMode != StAtm.ViewMode.Slice2D) {
                 if (obj3d.current.activeCam) {
 
                     updateInset();
@@ -986,7 +1113,7 @@ export const VolumePreview = (props: VolumePreviewProps) => {
                         if (obj3d.current.boxAninAction?.isRunning()) {
                             //reiterate another rendering
                             //(don't need 60FPS for this animation!)
-                            setTimeout(renderAll, 40);
+                            scheduleTimeout(renderAll, 40);
                         }
                     }
                     obj3d.current.renderer?.render(obj3d.current.scene, obj3d.current.activeCam);
@@ -1002,25 +1129,7 @@ export const VolumePreview = (props: VolumePreviewProps) => {
         }
     }
 
-    const updatePerspCam = () => {
-        if (obj3d.current.activeCam && obj3d.current.orthCam && obj3d.current.perspCam) {
-
-            console.log('up-P-Cam', obj3d.current.orthCam?.zoom);
-
-            obj3d.current.perspCam?.up.copy(obj3d.current.orthCam.up);
-            obj3d.current.perspCam?.position.copy(obj3d.current.orthCam.position);
-
-            obj3d.current.perspCam.fov = 1 / obj3d.current.orthCam?.zoom * Init_PerspCam_FOV;
-
-            obj3d.current.perspCam.lookAt(obj3d.current.scene.position);
-            obj3d.current.perspCam?.updateProjectionMatrix();
-        }
-
-    };
-
     const onCameraChanged = () => {
-        updatePerspCam();
-
         //show Volume's bounding-box while rotating
         if (StAtm.ViewMode.Volume3D != rtState.current.viewMode && obj3d.current.boxAninAction) {
             obj3d.current.boxAninAction.stop();
@@ -1049,7 +1158,7 @@ export const VolumePreview = (props: VolumePreviewProps) => {
         }
 
         //3D volume is drawn in IJK space to be handled correctly by the shader
-        const texture = new DataTexture3D(data, volume.xLength, volume.yLength, volume.zLength);
+        const texture = new Data3DTexture(data, volume.xLength, volume.yLength, volume.zLength);
 
         texture.format = RedFormat;
         texture.type = FloatType;
@@ -1365,17 +1474,17 @@ export const VolumePreview = (props: VolumePreviewProps) => {
                     panControl.enabled = true;
                     renderAll();
                 }
-                const attachDragListeners = (dispatcher: EventDispatcher, panControl: ArcballControls) => {
-                    let listener: (e: Event) => void;
+                const attachDragListeners = (dispatcher: EventDispatcher<any>, panControl: ArcballControls) => {
+                    let listener: (...args: any[]) => void;
 
                     listener = () => onDragStart(panControl);
                     dispatcher.addEventListener('dragstart', listener);
                     obj3d.current.listeners.push({ event: 'dragstart', listener, dispatcher });
                     dispatcher.addEventListener('drag', renderAll);
                     obj3d.current.listeners.push({ event: 'drag', listener: renderAll, dispatcher });
-                    listener = (e: Event) => onMarkDragEnd(e, panControl);
+                    listener = (e: unknown) => onMarkDragEnd(e as Event, panControl);
                     dispatcher.addEventListener('dragend', listener);
-                    obj3d.current.listeners.push({ event: 'dragend', listener: onMarkDragEnd, dispatcher });
+                    obj3d.current.listeners.push({ event: 'dragend', listener, dispatcher });
                 }
 
                 obj3d.current.dragCtrlX = new DragControls([], obj3d.current.camX, sliceXRendererContainer.current);
@@ -1387,21 +1496,26 @@ export const VolumePreview = (props: VolumePreviewProps) => {
                 //-----------------------------------------------------------------
 
                 //-- controls for main view (no gizmos)
-                const controls = new ArcballControls(obj3d.current.activeCam, obj3d.current.renderer.domElement);
+                if (obj3d.current.orthCam && obj3d.current.perspCam) {
+                    const orthControls = new ArcballControls(obj3d.current.orthCam, obj3d.current.renderer.domElement);
+                    const perspControls = new ArcballControls(obj3d.current.perspCam, obj3d.current.renderer.domElement);
 
-                controls.addEventListener('change', onCameraChanged);
-                obj3d.current.listeners.push({ event: 'change', listener: onCameraChanged, dispatcher: controls });
+                    [orthControls, perspControls].forEach((controls) => {
+                        controls.addEventListener('change', onCameraChanged);
+                        obj3d.current.listeners.push({ event: 'change', listener: onCameraChanged, dispatcher: controls });
+                        controls.minDistance = 50;
+                        controls.maxDistance = 500;
+                        controls.minZoom = 0.5;
+                        controls.maxZoom = 10;
+                        controls.enablePan = false;
+                        controls.enabled = false;
+                    });
 
-                obj3d.current.controls = controls;
-
-                controls.minDistance = 50;
-                controls.maxDistance = 500;
-
-                //zoom range where synchro is not too bad between Orthographic and Perspective cameras
-                controls.minZoom = 0.5;
-                controls.maxZoom = 10;
-
-                controls.enablePan = false;
+                    obj3d.current.orthControls = orthControls;
+                    obj3d.current.perspControls = perspControls;
+                    obj3d.current.controls = orthControls;
+                    obj3d.current.controls.enabled = true;
+                }
 
                 setCameraPOV(StAtm.CameraPOV.Superior);
             }
@@ -1450,7 +1564,7 @@ export const VolumePreview = (props: VolumePreviewProps) => {
 
     const onRendererClick = (
         event: React.MouseEvent<HTMLDivElement, MouseEvent>,
-        camera: OrthographicCamera | undefined,
+        camera: Camera | undefined,
     ) => {
 
     };
@@ -1458,7 +1572,7 @@ export const VolumePreview = (props: VolumePreviewProps) => {
 
     const onRendererMouseMove = (
         event: React.MouseEvent<HTMLDivElement, MouseEvent>,
-        camera: OrthographicCamera | undefined,
+        camera: Camera | undefined,
     ) => {
 
     };
@@ -1825,11 +1939,14 @@ export const VolumePreview = (props: VolumePreviewProps) => {
                 </ResizeSensor2>
 
                 <div
+                    className={props.inlineControls ? 'inlinePreviewControlsOverlay' : undefined}
                     style={{
                         ...(props.inlineControls ?
                             {
                                 position: 'absolute',
                                 backgroundColor: '#918f8f3b',
+                                zIndex: 250,
+                                pointerEvents: 'auto',
                             }
                             :
                             {}

@@ -1,13 +1,15 @@
 //From https://github.com/mrdoob/three.js/blob/dev/examples/jsm/misc/VolumeSlice.js
 
 import {
+	BufferGeometry,
 	ClampToEdgeWrapping,
 	DoubleSide,
 	LinearFilter,
 	Mesh,
 	MeshBasicMaterial,
 	PlaneGeometry,
-	Texture
+	Texture,
+	Vector2,
 } from 'three';
 
 import { AxisIndex, Volume } from './Volume';
@@ -58,8 +60,9 @@ class VolumeSlice {
 			const material = new MeshBasicMaterial({ map: canvasMap, side: DoubleSide, });
 			//	, transparent: true, opacity: 0.5, depthWrite: false, depthTest: false, alphaTest: 0.5  } );
 
-			this.mesh = new Mesh(this.geometry, material);
-			this.mesh.matrixAutoUpdate = false;
+			const mesh = new Mesh(this.geometry, material);
+			mesh.matrixAutoUpdate = false;
+			this.mesh = mesh;
 		}
 		this.geometryNeedsUpdate = true;
 
@@ -70,7 +73,7 @@ class VolumeSlice {
 	/**
 	 * @member {Volume} volume The associated volume
 	 */
-	volume: Volume;
+	volume: Volume | undefined;
 
 	/**
 	 * @member {Number} index The index of the slice, if changed, will automatically call updateGeometry at the next repaint
@@ -90,7 +93,7 @@ class VolumeSlice {
 	/**
 	 * @member {HTMLCanvasElement} canvas The final (offscreen) canvas used for the texture	
 	 */
-	private canvas;
+	private canvas?: HTMLCanvasElement;
 	/**
 	 * @member {HTMLCanvasElement} canvasBuffers The (offscreen) canvas used for intermediary to painting of the data (filtering, labels overlay)
 	 */
@@ -99,12 +102,12 @@ class VolumeSlice {
 	/**
 	 * @member {Mesh} mesh The mesh ready to get used in the scene
 	 */
-	mesh;
+	mesh?: Mesh<BufferGeometry, MeshBasicMaterial>;
 
 	/**
 	 * @member {Boolean} geometryNeedsUpdate If set to true, updateGeometry will be triggered at the next repaint
 	 */
-	private geometryNeedsUpdate;
+	private geometryNeedsUpdate = false;
 
 	/**
 	 * @member {Number} iLength Width of slice in the original coordinate system, corresponds to the width of the buffer canvas
@@ -124,7 +127,7 @@ class VolumeSlice {
 	 */
 	private sliceAccess: ((i: number, j: number) => number) = () => 0;
 
-	private geometry: THREE.BufferGeometry | undefined;
+	private geometry: BufferGeometry | undefined;
 
 	/**
 	 * @member {Function} repaint Refresh the texture and the geometry if geometryNeedsUpdate is set to true
@@ -142,6 +145,9 @@ class VolumeSlice {
 		const iLength = this.iLength,
 			jLength = this.jLength,
 			volume = this.volume;
+		if (!volume) {
+			return;
+		}
 
 		//final canvas where all filtered image will be drawn
 		const ctx = this.canvas!.getContext('2d');
@@ -256,7 +262,7 @@ class VolumeSlice {
 		//restore default composition value
 		ctx.globalCompositeOperation = compositeOpbackup;
 
-		const colorMap = (this.mesh?.material as THREE.MeshBasicMaterial).map;
+		const colorMap = this.mesh?.material.map;
 		if (colorMap) {
 			colorMap.needsUpdate = true;
 		}
@@ -270,7 +276,11 @@ class VolumeSlice {
 	 */
 	private updateGeometry() {
 
-		const extracted = this.volume.extractPerpendicularPlane(this.axis, this.index, this.shallow ? this.volume.mainVolumeMatrix : undefined);
+		const volume = this.volume;
+		if (!volume) {
+			return;
+		}
+		const extracted = volume.extractPerpendicularPlane(this.axis, this.index, this.shallow ? volume.mainVolumeMatrix : undefined);
 		this.sliceAccess = extracted.sliceAccess;
 		this.jLength = extracted.jLength;
 		this.iLength = extracted.iLength;
@@ -298,11 +308,15 @@ class VolumeSlice {
 
 	};
 
-	getVoxelIndexAtUV(uv: THREE.Vector2) {
+	getVoxelIndexAtUV(uv: Vector2) {
+		const volume = this.volume;
+		if (!volume) {
+			return 0;
+		}
 		const [u, v] = uv.toArray();
 		const i = Math.round(u * this.iLength);
 		const j = Math.round((1 - v) * this.jLength);
-		return this.volume.data[this.sliceAccess(i, j)];
+		return volume.data[this.sliceAccess(i, j)];
 	};
 
 	/**

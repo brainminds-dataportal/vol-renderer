@@ -1,6 +1,12 @@
-.inlineControls.bp3-tab {
-    color: #919191,
+.inlinePreviewControls .inlineControls.bp6-tab {
+    color: #919191;
 }
-.inlineControls.bp3-tab[aria-selected="true"] {
-    color: #FFF,
+
+.inlinePreviewControls .inlineControls.bp6-tab[aria-selected="true"],
+.inlinePreviewControls .inlineControls.bp6-tab:not([aria-disabled="true"]):hover {
+    color: #fff;
+}
+
+.inlinePreviewControls .inlineControlsTabs .bp6-tab-indicator {
+    background-color: #fff;
 }

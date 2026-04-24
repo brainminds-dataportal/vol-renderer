@@ -107,7 +107,7 @@ export const volumeLoaded = atom(false);
 export const volumeValMin = atom(0.0);
 export const volumeValMax = atom(1.0);
 
-export const viewMode = atom(ViewMode.Slice3D);
+export const viewMode = atom(ViewMode.Volume3D);
 export const alertMessage = atom<JSX.Element | undefined>(undefined);
 
 export const deltaRotation = atom([0, 0, 0] as [number, number, number]);

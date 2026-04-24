@@ -24,6 +24,11 @@ type PreviewControlsProps = {
     inline?: boolean,
 };
 
+const PreviewTabId = {
+    Volume: 'volume',
+    Slices3D: 'slices-3d',
+} as const;
+
 const PreviewControls = (props: PreviewControlsProps) => {
 
     const [volumeLoaded,] = useAtom(StAtm.volumeLoaded);
@@ -46,10 +51,15 @@ const PreviewControls = (props: PreviewControlsProps) => {
         />
         ;
 
+    const selectedTabId = viewMode === StAtm.ViewMode.Slice3D
+        ? PreviewTabId.Slices3D
+        : PreviewTabId.Volume;
+
 
     return (
 
         <div
+            className={props.inline ? 'bp6-dark inlinePreviewControls' : undefined}
             style={{
                 //backgroundColor: "#EEE",
                 padding: props.inline ? 0 : 6,
@@ -88,15 +98,19 @@ const PreviewControls = (props: PreviewControlsProps) => {
                     }
 
                     <Tabs
+                        className={props.inline ? 'inlineControlsTabs' : undefined}
                         id="tabs"
-                        selectedTabId={viewMode.toString()}
+                        renderActiveTabPanelOnly
+                        selectedTabId={selectedTabId}
                         onChange={(vm) => {
-                            const newViewMode: StAtm.ViewMode = vm as StAtm.ViewMode;
+                            const newViewMode = vm === PreviewTabId.Slices3D
+                                ? StAtm.ViewMode.Slice3D
+                                : StAtm.ViewMode.Volume3D;
                             setViewMode(newViewMode);
                         }}
                     >
                         <Tab
-                            id={StAtm.ViewMode.Volume3D.toString()}
+                            id={PreviewTabId.Volume}
                             className={props.inline ? 'inlineControls' : ''}
                             disabled={!volumeLoaded}
                             title={<span><Icon icon="cube" /> Volume</span>}
@@ -172,7 +186,7 @@ const PreviewControls = (props: PreviewControlsProps) => {
                             } />
                         {/*<Tabs.Expander />*/}
                         <Tab
-                            id={StAtm.ViewMode.Slice3D.toString()}
+                            id={PreviewTabId.Slices3D}
                             className={props.inline ? 'inlineControls' : ''}
                             disabled={!volumeLoaded}
                             title={<span><Icon icon="layers" /> 3D Slices </span>}

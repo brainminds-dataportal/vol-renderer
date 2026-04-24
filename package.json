@@ -1,9 +1,9 @@
 {
-  "name": "@cau-riken/vol-renderer",
+  "name": "@brainminds-dataportal/vol-renderer",
   "publishConfig": {
-    "registry": "https://npm.pkg.github.com/cau-riken"
+    "registry": "https://npm.pkg.github.com/brainminds-dataportal"
   },
-  "version": "0.0.1",
+  "version": "0.1.0",
   "description": "",
   "main": "dist/cjs/index.js",
   "module": "dist/esm/index.js",
@@ -11,46 +11,60 @@
     "dist"
   ],
   "types": "dist/index.d.ts",
+  "style": "dist/main.css",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/esm/index.js",
+      "require": "./dist/cjs/index.js",
+      "default": "./dist/esm/index.js"
+    },
+    "./dist/main.css": "./dist/main.css",
+    "./package.json": "./package.json"
+  },
   "scripts": {
+    "build": "npm run rollup",
+    "build:types": "tsc --declaration --emitDeclarationOnly --outDir dist/types",
+    "demo:build": "npm --prefix demo-app run build",
+    "demo:dev": "npm --prefix demo-app run dev",
+    "demo:preview": "npm --prefix demo-app run preview",
     "test": "echo \"Error: no test specified\" && exit 1",
-    "rollup": "rollup --config"
+    "rollup": "npm run build:types && rollup --config"
   },
   "author": "",
   "license": "ISC",
   "devDependencies": {
-    "@rollup/plugin-commonjs": "^22.0.1",
-    "@rollup/plugin-image": "^2.1.1",
-    "@rollup/plugin-node-resolve": "^13.3.0",
-    "@rollup/plugin-typescript": "^8.3.3",
-    "@types/react": "^17.0.38",
-    "@types/react-dom": "^17.0.11",
-    "@types/three": "^0.142.0",
-    "rollup": "^2.76.0",
-    "rollup-plugin-dts": "^4.2.2",
+    "@rollup/plugin-commonjs": "^29.0.2",
+    "@rollup/plugin-image": "^3.0.3",
+    "@rollup/plugin-node-resolve": "^16.0.3",
+    "@rollup/plugin-terser": "^1.0.0",
+    "@rollup/plugin-typescript": "^12.3.0",
+    "@types/react": "^18.3.27",
+    "@types/react-dom": "^18.3.7",
+    "@types/three": "^0.184.0",
+    "postcss": "^8.5.10",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "rollup": "^4.60.2",
+    "rollup-plugin-dts": "^6.4.1",
     "rollup-plugin-peer-deps-external": "^2.2.4",
     "rollup-plugin-postcss": "^4.0.2",
-    "rollup-plugin-sass": "^1.2.12",
-    "rollup-plugin-terser": "^7.0.2",
-    "rollup-plugin-visualizer": "^5.7.1",
-    "typescript": "^4.5.5"
+    "rollup-plugin-sass": "^1.15.3",
+    "rollup-plugin-visualizer": "^7.0.1",
+    "typescript": "^6.0.3"
   },
   "dependencies": {
-    "@blueprintjs/core": "^3.52.0",
-    "@blueprintjs/popover2": "^0.14.0",
-    "@react-hook/debounce": "^4.0.0",
-    "@tweenjs/tween.js": "^18.6.4",
-    "axios": "^0.26.0",
-    "fflate": "^0.7.3",
-    "file-loader": "^6.2.0",
-    "jotai": "^1.5.3",
-    "nifti-reader-js": "^0.5.4",
-    "svd-js": "^1.1.1",
-    "three": "^0.142.0",
-    "url-loader": "^4.1.1"
+    "@blueprintjs/core": "^6.12.1",
+    "@blueprintjs/popover2": "^2.1.32",
+    "@tweenjs/tween.js": "^25.0.0",
+    "fflate": "^0.8.2",
+    "jotai": "^2.19.1",
+    "nifti-reader-js": "^0.8.0",
+    "three": "^0.184.0"
   },
   "peerDependencies": {
-    "normalize": "^0.3.1",
-    "react": "^17.0.1",
-    "react-dom": "^17.0.1"
+    "normalize.css": "^8.0.1",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
   }
 }

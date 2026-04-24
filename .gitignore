@@ -1,6 +1,9 @@
 dist/cjs/
 dist/esm/
+dist/types/
 dist/index.d.ts*
 dist/main.*
 node_modules/
-cau-riken-vol-renderer-*.tgz
+demo-app/dist/
+demo-app/node_modules/
+brainminds-dataportal-vol-renderer-*.tgz
