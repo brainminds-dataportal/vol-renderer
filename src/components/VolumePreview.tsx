@@ -59,9 +59,7 @@ import {
     Icon,
 } from "@blueprintjs/core";
 
-import {
-    ResizeSensor2,
-} from "@blueprintjs/popover2";
+import { ResizeSensor } from "@blueprintjs/core";
 
 import * as StAtm from '../StateAtoms';
 
@@ -1819,9 +1817,7 @@ export const VolumePreview = (props: VolumePreviewProps) => {
                     )
                 }}
             >
-                <ResizeSensor2
-                    onResize={handleResize}
-                >
+                <ResizeSensor onResize={handleResize}>
                     <div
                         style={{
                             maxWidth: '100%', maxHeight: '100%', position: 'relative',
@@ -1936,7 +1932,7 @@ export const VolumePreview = (props: VolumePreviewProps) => {
                         }
 
                     </div>
-                </ResizeSensor2>
+                </ResizeSensor>
 
                 <div
                     className={props.inlineControls ? 'inlinePreviewControlsOverlay' : undefined}
