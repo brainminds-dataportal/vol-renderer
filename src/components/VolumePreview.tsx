@@ -13,7 +13,7 @@ import {
     BoxHelper,
     BufferGeometry,
     Camera,
-    Clock,
+    Timer,
     Data3DTexture,
     EdgesGeometry,
     EventDispatcher,
@@ -248,7 +248,7 @@ export const VolumePreview = (props: VolumePreviewProps) => {
     const [focusedRegion, setFocusedRegion] = React.useState<IndexedRegionColorEntry | undefined>();
 
     const volRendererContainer = React.useRef<HTMLDivElement>(null);
-    const clock = React.useRef(new Clock());
+    const timer = React.useRef(new Timer());
     const pendingTimeouts = React.useRef<number[]>([]);
     const volumeLoadToken = React.useRef(0);
     const isUnmounted = React.useRef(false);
@@ -1105,7 +1105,7 @@ export const VolumePreview = (props: VolumePreviewProps) => {
 
                     updateInset();
                     if (obj3d.current.boxAniMixer) {
-                        const delta = clock.current.getDelta();
+                        const delta = timer.current.getDelta();
                         obj3d.current.boxAniMixer.update(delta);
                         //as long as animation isn't finished...
                         if (obj3d.current.boxAninAction?.isRunning()) {
