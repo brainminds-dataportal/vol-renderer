@@ -32,7 +32,6 @@
     "demo:build": "npm --prefix demo-app run build",
     "demo:dev": "npm --prefix demo-app run dev",
     "demo:preview": "npm --prefix demo-app run preview",
-    "demo:sync": "npm run demo:build && node scripts/sync-demo-app-build.mjs",
     "test": "echo \"Error: no test specified\" && exit 1",
     "rollup": "npm run build:types && rollup --config"
   },
@@ -44,13 +43,13 @@
     "@rollup/plugin-node-resolve": "^16.0.3",
     "@rollup/plugin-terser": "^1.0.0",
     "@rollup/plugin-typescript": "^12.3.0",
-    "@types/react": "^18.3.27",
+    "@types/react": "^18.3.28",
     "@types/react-dom": "^18.3.7",
-    "@types/three": "^0.184.0",
-    "postcss": "^8.5.10",
+    "@types/three": "^0.184.1",
+    "postcss": "^8.5.14",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
-    "rollup": "^4.60.2",
+    "rollup": "^4.60.4",
     "rollup-plugin-dts": "^6.4.1",
     "rollup-plugin-peer-deps-external": "^2.2.4",
     "rollup-plugin-postcss": "^4.0.2",
@@ -59,11 +58,10 @@
     "typescript": "^6.0.3"
   },
   "dependencies": {
-    "@blueprintjs/core": "^6.12.1",
-
+    "@blueprintjs/core": "^6.13.0",
     "@tweenjs/tween.js": "^25.0.0",
     "fflate": "^0.8.2",
-    "jotai": "^2.19.1",
+    "jotai": "^2.20.0",
     "nifti-reader-js": "^0.8.0",
     "three": "^0.184.0"
   },

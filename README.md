@@ -3,12 +3,14 @@
 A npm package to display NIfTI volume (based on ThreeJs)
 
 <div align="center">
-  <img src="docs/vol-renderer_preview.png">
+  <img src="https://github.com/brainminds-dataportal/vol-renderer/raw/main/docs/vol-renderer_preview.png" alt="vol-renderer preview" />
 </div>
 
 <br/><br/>
 
-## Try the online [demo](https://brainminds-dataportal.github.io/vol-renderer/demo/index.html).
+## Try the online [demo](https://brainminds-dataportal.github.io/vol-renderer/demo/index.html)
+
+Note: The demo is now deployed from the gh-pages branch when tags matching v* are pushed.
 
 <br/><br/>
 
