@@ -8,9 +8,11 @@ A npm package to display NIfTI volume (based on ThreeJs)
 
 <br/><br/>
 
-## Try the online [demo](https://brainminds-dataportal.github.io/vol-renderer/demo/index.html)
+## Try the online [demo](https://brainminds-dataportal.github.io/vol-renderer/)
 
-Note: The demo is now deployed from the gh-pages branch when tags matching v* are pushed.
+Note: The demo is deployed by GitHub Pages via GitHub Actions when tags
+matching `v*` are pushed. The repository Pages source should be set to
+**GitHub Actions**.
 
 <br/><br/>
 
